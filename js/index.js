@@ -7,6 +7,7 @@ const screens = {
 const deviceName = document.getElementById('device-name');
 const deviceNameInput = document.getElementById('device-name-input');
 const connectButton = document.getElementById('button-connect');
+const connectSerialButton = document.getElementById('button-connect-serial');
 const echoButton = document.getElementById('button-echo');
 const disconnectButton = document.getElementById('button-disconnect');
 const resetButton = document.getElementById('button-reset');
@@ -26,9 +27,12 @@ fastUpload.checked = localStorage.getItem('fastUpload') === 'true';
 fastUpload.addEventListener('change', () => {
     localStorage.setItem('fastUpload', fastUpload.checked ? 'true' : 'false');
 });
-const bluetoothIsAvailable = document.getElementById('bluetooth-is-available');
-const bluetoothIsAvailableMessage = document.getElementById('bluetooth-is-available-message');
+const transportIsAvailable = document.getElementById('transport-is-available');
+const transportIsAvailableMessage = document.getElementById('transport-is-available-message');
 const connectBlock = document.getElementById('connect-block');
+const bluetoothConnectSection = document.getElementById('bluetooth-connect-section');
+const serialConnectSection = document.getElementById('serial-connect-section');
+const transportSeparator = document.getElementById('transport-separator');
 const connectionError = document.getElementById('connection-error');
 const connectionErrorMessage = document.getElementById('connection-error-message');
 const closeConnectionError = document.getElementById('close-connection-error');
@@ -37,13 +41,32 @@ const uploadIcon = document.getElementById('upload-icon');
 const uploadDropTitle = document.getElementById('upload-drop-title');
 const uploadDropSubtitle = document.getElementById('upload-drop-subtitle');
 
-if (navigator && navigator.bluetooth && navigator.bluetooth.getAvailability()) {
-    bluetoothIsAvailableMessage.innerText = 'Bluetooth is available in your browser.';
-    bluetoothIsAvailable.className = 'alert alert-success';
+// Detect available transports
+const bluetoothAvailable = !!(navigator && navigator.bluetooth && navigator.bluetooth.getAvailability());
+const serialAvailable = !!(navigator && navigator.serial);
+
+if (bluetoothAvailable || serialAvailable) {
+    const transports = [];
+    if (bluetoothAvailable) transports.push('Bluetooth');
+    if (serialAvailable) transports.push('Serial');
+    transportIsAvailableMessage.innerText = `${transports.join(' and ')} ${transports.length > 1 ? 'are' : 'is'} available in your browser.`;
+    transportIsAvailable.className = 'alert alert-success';
     connectBlock.style.display = 'block';
+    
+    // Show appropriate connect sections
+    if (bluetoothAvailable) {
+        bluetoothConnectSection.style.display = 'block';
+    }
+    if (serialAvailable) {
+        serialConnectSection.style.display = 'block';
+    }
+    // Show separator if both are available
+    if (bluetoothAvailable && serialAvailable) {
+        transportSeparator.style.display = 'block';
+    }
 } else {
-    bluetoothIsAvailable.className = 'alert alert-danger';
-    bluetoothIsAvailableMessage.innerText = 'Bluetooth is not available in your browser.';
+    transportIsAvailable.className = 'alert alert-danger';
+    transportIsAvailableMessage.innerText = 'Neither Bluetooth nor Serial is available in your browser.';
 }
 
 let file = null;
@@ -506,7 +529,11 @@ connectButton.addEventListener('click', async () => {
     if (deviceNameInput.value) {
         filters = [{ namePrefix: deviceNameInput.value }];
     };
-    await mcumgr.connect(filters);
+    await mcumgr.connect(TRANSPORT_BLUETOOTH, filters);
+});
+
+connectSerialButton.addEventListener('click', async () => {
+    await mcumgr.connect(TRANSPORT_SERIAL);
 });
 
 disconnectButton.addEventListener('click', async () => {

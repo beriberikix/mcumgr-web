@@ -1,20 +1,21 @@
-# MCU Manager (Web Bluetooth)
+# MCU Manager (Web Bluetooth & Serial)
 
-This tool is the Web Bluetooth version of MCU Manager that enables a user to communicate with and manage remote devices running the Mynewt OS. It uses a connection profile to establish a connection with a device and sends command requests to the device.
+This tool is the Web version of MCU Manager that enables a user to communicate with and manage remote devices running the Mynewt OS (or any device supporting the SMP protocol). It uses Web Bluetooth or Web Serial to establish a connection with a device and sends command requests to the device.
 
-The main focus is implementing firmware updates via Web Bluetooth, however other commands might be supported as well.
+The main focus is implementing firmware updates via Web Bluetooth or Web Serial, however other commands might be supported as well.
 
 > Prefer a command line? **[mcumgr-mac](https://github.com/boogie/mcumgr-mac)** is a
 > native macOS CLI version of the same tool.
 
 ## Features
 
-- **Firmware Upload**: Upload MCUboot-formatted firmware images over Bluetooth LE
+- **Multiple Transports**: Connect via Bluetooth LE or Serial (USB/UART)
+- **Firmware Upload**: Upload MCUboot-formatted firmware images
 - **Fast Upload** (optional): larger chunks and pipelined writes for much faster transfers, with automatic fallback for devices that need conservative settings
 - **Image Management**: Test, confirm, and erase firmware images
 - **Device Control**: Reset device, send echo commands
 - **Progress Tracking**: Real-time progress with live transfer speed and a time-remaining estimate
-- **Auto-Reconnect**: Automatic reconnection and upload resumption on connection loss
+- **Auto-Reconnect**: Automatic reconnection and upload resumption on connection loss (Bluetooth)
 - **Image Validation**: Pre-upload validation of MCUboot image format
 
 ## Quick Start
@@ -68,6 +69,19 @@ The Web Bluetooth API provides the ability to connect and interact with Bluetoot
 - Android Chrome should work but is untested
 - On iOS/iPadOS, Bluefy may work but might require updates
 
+### Web Serial Compatibility
+
+Web Serial is supported in Chrome and Edge on desktop platforms:
+
+| Platform | Browser | Support |
+|----------|---------|---------|
+| **Windows** | Chrome/Edge | ✅ Full |
+| **macOS** | Chrome/Edge | ✅ Full |
+| **Linux** | Chrome/Edge | ✅ Full |
+| **Android/iOS** | Any | ❌ No |
+
+**Note:** Web Serial requires a serial device (USB-to-UART adapter or native USB serial).
+
 ## Documentation
 
 - **[API.md](API.md)** - Complete API reference and usage examples
@@ -114,8 +128,11 @@ mcumgr
     console.log(`Upload: ${percentage}%`)
   );
 
-// Connect to device
-await mcumgr.connect();
+// Connect via Bluetooth (default)
+await mcumgr.connect(TRANSPORT_BLUETOOTH);
+
+// Or connect via Serial
+await mcumgr.connect(TRANSPORT_SERIAL);
 
 // Upload firmware
 const response = await fetch('firmware.bin');
