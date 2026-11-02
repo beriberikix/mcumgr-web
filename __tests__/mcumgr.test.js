@@ -641,6 +641,56 @@ describe('Transport Classes', () => {
   });
 
   describe('MCUTransportSerial', () => {
+    describe('paced writes', () => {
+      // Collects every write; sleeping is skipped so the test runs instantly.
+      const capture = (options) => {
+        const transport = new MCUTransportSerial(options);
+        const writes = [];
+        transport._writer = { write: jest.fn(async (bytes) => { writes.push(Uint8Array.from(bytes)); }) };
+        transport._flushed = true;
+        transport._sleep = jest.fn(async () => {});
+        return { transport, writes };
+      };
+      const concat = (parts) => {
+        const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+        let offset = 0;
+        for (const p of parts) { out.set(p, offset); offset += p.length; }
+        return out;
+      };
+      // A packet long enough to need continuation frames (> 93 bytes of body).
+      const packet = Uint8Array.from({ length: 300 }, (_, i) => i & 0xff);
+
+      test('splits every frame into writes of at most 32 bytes by default', async () => {
+        const { transport, writes } = capture({});
+        await transport.sendMessage(packet);
+        expect(writes.length).toBeGreaterThan(3);
+        expect(Math.max(...writes.map(w => w.length))).toBeLessThanOrEqual(32);
+        expect(transport._sleep).toHaveBeenCalledTimes(writes.length);
+      });
+
+      test('sends exactly the same bytes as unpaced writes', async () => {
+        const paced = capture({});
+        const unpaced = capture({ writeChunkSize: 0 });
+        await paced.transport.sendMessage(packet);
+        await unpaced.transport.sendMessage(packet);
+        expect(concat(paced.writes)).toEqual(concat(unpaced.writes));
+      });
+
+      test('writeChunkSize 0 writes each frame whole, without sleeping', async () => {
+        const { transport, writes } = capture({ writeChunkSize: 0 });
+        await transport.sendMessage(packet);
+        expect(writes.length).toBe(4); // 304-byte body / 93 bytes per frame
+        expect(writes[0][0]).toBe(0x06);
+        expect(writes[1][0]).toBe(0x04);
+        expect(transport._sleep).not.toHaveBeenCalled();
+      });
+
+      test('paces at the line rate: 32 bytes take 3 ms at 115200 baud', () => {
+        expect(new MCUTransportSerial({})._msPerBytes(32)).toBe(3);
+        expect(new MCUTransportSerial({ baudRate: 1000000 })._msPerBytes(32)).toBe(1);
+      });
+    });
+
     test('should be a constructor', () => {
       expect(typeof MCUTransportSerial).toBe('function');
     });

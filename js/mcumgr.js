@@ -436,6 +436,8 @@ class MCUTransportSerial extends MCUTransport {
         this._reader = null;
         this._writer = null;
         this._baudRate = di.baudRate || 115200;
+        // Bytes per write when pacing; 0 writes each frame in one go.
+        this._writeChunkSize = di.writeChunkSize ?? 32;
     }
 
     async connect(filters) {
@@ -574,10 +576,45 @@ class MCUTransportSerial extends MCUTransport {
             this._flushed = true;
         }
 
-        // Write each frame
+        // Write each frame, paced (see _writePaced)
         for (const frame of frames) {
-            await this._writer.write(frame);
+            await this._writePaced(frame);
         }
+    }
+
+    /**
+     * Write bytes no faster than the UART can send them.
+     *
+     * USB delivers a write to the adapter in one burst, much faster than the
+     * UART drains it. Some adapters lose bytes when their buffer overflows:
+     * the J-Link OB on Nordic DKs drops bytes from bursts much over ~40 bytes,
+     * so a long frame loses its newline, the target logs "Line too long,
+     * fragment dropped", and the request never gets a reply (short requests
+     * such as image state still work, which hides the problem). Writing in
+     * small pieces at roughly the line rate keeps the adapter's buffer from
+     * overflowing on any of them.
+     */
+    async _writePaced(bytes) {
+        const chunk = this._writeChunkSize;
+        if (!chunk || bytes.length <= chunk) {
+            await this._writer.write(bytes);
+            if (chunk) await this._sleep(this._msPerBytes(bytes.length));
+            return;
+        }
+        for (let offset = 0; offset < bytes.length; offset += chunk) {
+            const piece = bytes.subarray(offset, offset + chunk);
+            await this._writer.write(piece);
+            await this._sleep(this._msPerBytes(piece.length));
+        }
+    }
+
+    /** Time the UART needs to send n bytes (8N1: 10 bits per byte). */
+    _msPerBytes(n) {
+        return Math.ceil((n * 10 * 1000) / this._baudRate);
+    }
+
+    _sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     async _readIncoming(reader) {
