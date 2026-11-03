@@ -314,6 +314,26 @@ describe('MCUManager', () => {
   });
 
   describe('Upload Functionality', () => {
+    describe('fast upload window per transport', () => {
+      const start = (transport) => {
+        const m = new MCUManager({ logger: { info: () => {}, error: () => {} } });
+        m._transport = transport;
+        m._uploadNext = jest.fn();
+        m.cmdUpload(new ArrayBuffer(1024), 0, { fast: true });
+        return m;
+      };
+
+      test('pipelines several chunks over Bluetooth', () => {
+        expect(start(new MCUTransportBluetooth({}))._window).toBe(8);
+      });
+
+      test('sends one chunk at a time over serial, even in fast mode', () => {
+        const m = start(new MCUTransportSerial({}));
+        expect(m._fast).toBe(true);
+        expect(m._window).toBe(1);
+      });
+    });
+
     beforeEach(() => {
       manager._sendMessage = jest.fn();
       manager._imageUploadProgressCallback = jest.fn();

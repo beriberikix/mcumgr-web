@@ -1113,7 +1113,12 @@ class MCUManager {
         // upload stays strictly sequential (window 1).
         this._fast = !!options.fast;
         this._fastChunkCap = this._fastMaxChunkSize;
-        this._window = this._fast ? this._fastWindow : 1;
+        // Pipelining is for Bluetooth. Over serial, the target's SMP UART
+        // transport takes one request at a time into a small receive buffer,
+        // and a request it drops gets no reply at all (only a timeout), so fast
+        // mode there keeps its other gains but sends one chunk at a time.
+        const serial = typeof MCUTransportSerial !== 'undefined' && this._transport instanceof MCUTransportSerial;
+        this._window = this._fast && !serial ? this._fastWindow : 1;
         this._sendOffset = 0;
         this._pumping = false;
 
